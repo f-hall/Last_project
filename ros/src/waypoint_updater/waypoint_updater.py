@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import numpy as np
 import rospy
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
@@ -26,7 +27,14 @@ LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this n
 
 class WaypointUpdater(object):
     def __init__(self):
-        self.bongo = 0.6;
+        self.wp = []
+        self.test = 0
+        self.test2 = 0
+        self.pub_wp = []
+        self.current_pose = np.array([0.0,0.0,0.0])
+        self.current_dir = np.array([0.0,0.0,0.0,0.0])
+        self.numpy_list = np.zeros((1, 3))
+        self.distance_array = np.zeros(1)
         rospy.init_node('waypoint_updater')
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
@@ -37,27 +45,56 @@ class WaypointUpdater(object):
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
         rate = rospy.Rate(2)
         while not rospy.is_shutdown():
-            str = "hello world %s" % rospy.get_time()
-            rospy.loginfo(str)
-
-            rospy.sleep(0.5)
+            self.distance_array = np.zeros(self.numpy_list.shape[0])
+            for i in range(self.numpy_list.shape[0]):
+                self.distance_array[i]=np.linalg.norm(self.current_pose-self.numpy_list[i])
+            if (self.numpy_list.shape[0] > 1):
+                rospy.loginfo(self.test)
+                rospy.loginfo(len(self.test2.waypoints))
+                minimum = np.argmin(self.distance_array)
+                self.pub_wp = []
+                for i in range(LOOKAHEAD_WPS):
+                    self.pub_wp.append(self.test2.waypoints[minimum + i])
+                rospy.loginfo(self.pub_wp[0].pose.pose.position)
+                rospy.loginfo(self.current_pose)
+            rospy.loginfo("test")
+            rate.sleep()
 
         # TODO: Add other member variables you need below
 
         rospy.spin()
 
     def pose_cb(self, msg):
-        help = 0.5+msg.pose.position.x
-        rospy.loginfo(msg.pose.position.x)
-        rospy.loginfo(help)
-        rospy.loginfo(self.bongo)
-        rospy.loginfo("____________________")
+        self.current_pose[0] = msg.pose.position.x
+        self.current_pose[1] = msg.pose.position.y
+        self.current_pose[2] = msg.pose.position.z
+
+        #self.current_dir[0] = msg.pose.orientation.x
+        #self.current_dir[1] = msg.pose.orientation.y
+        #self.current_dir[2] = msg.pose.orientation.z
+        #self.current_dir[3] = msg.pose.orientation.w
+
         # TODO: Implement
-        #pass
 
     def waypoints_cb(self, waypoints):
+        count_waypoint = len(waypoints.waypoints)
+        self.numpy_list = np.zeros((count_waypoint, 3))
+        for i in range(len(waypoints.waypoints)):
+            self.numpy_list[i][0] = waypoints.waypoints[i].pose.pose.position.x
+            self.numpy_list[i][1] = waypoints.waypoints[i].pose.pose.position.y
+            self.numpy_list[i][2] = waypoints.waypoints[i].pose.pose.position.z
+        self.test = count_waypoint
+        self.test2 = waypoints
+        #rospy.loginfo(self.numpy_list[523])
+        #ads = ()
+        #ads = waypoints
+        #for i in range(len(ads)):
+        #    i = i+1
+        #rospy.loginfo(i)
+        #rospy.loginfo(waypoints)
+        #rospy.loginfo("________above____________")
         # TODO: Implement
-        pass
+        #pass
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
