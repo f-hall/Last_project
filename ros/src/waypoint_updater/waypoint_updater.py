@@ -45,9 +45,12 @@ class WaypointUpdater(object):
 
         # Container for current base waypoints received via subscribtion to '/base_waypoints'
         self.base_waypoints = None
+
+        self.last_waypoint_id = None
+
         rate = rospy.Rate(2)
         while not rospy.is_shutdown():
-            if self.base_waypoints:
+            if (self.base_waypoints and self.pose):
 
             # Define container for waypoints ahead
                 wps_ahead = Lane()
@@ -62,6 +65,7 @@ class WaypointUpdater(object):
             # Determine first waypoint ahead of the car
                 idx_wp_closest = self.get_idx_closest_waypoint()
                 idx_wp_ahead = self.get_idx_ahead_waypoint(idx_wp_closest)
+                self.last_waypoint_id = idx_wp_ahead
 
             # Determine waypoints ahead to be published
                 idx_cur = idx_wp_ahead
@@ -91,13 +95,6 @@ class WaypointUpdater(object):
         # Step 1: Update of self.pose
         ##########
         self.pose = msg.pose
-        
-        ##########
-        # Step 2: Publication of the waypoints ahead, which is supposed to be in this function, 
-        #         as a new publication is required every time we receive an update of the car's pose
-        ##########
-
-        # Only publish waypoints ahead if we already received base_waypoints
 
 
     def waypoints_cb(self, waypoints):
@@ -142,11 +139,23 @@ class WaypointUpdater(object):
         if (self.base_waypoints and self.pose):
             min_wp_dist = 1000000
             idx_wp_closest = None
-            for i in range(len(self.base_waypoints)):
-                dist = self.get_eucl_distance(self.base_waypoints[i].pose.pose.position.x, self.base_waypoints[i].pose.pose.position.y,self.pose.position.x,self.pose.position.y)
-                if dist < min_wp_dist:
-                    min_wp_dist = dist
-                    idx_wp_closest = i
+
+            if self.last_waypoint_id == None:
+                for i in range(len(self.base_waypoints)):
+                    dist = self.get_eucl_distance(self.base_waypoints[i].pose.pose.position.x, self.base_waypoints[i].pose.pose.position.y,self.pose.position.x,self.pose.position.y)
+                    if dist < min_wp_dist:
+                        min_wp_dist = dist
+                        idx_wp_closest = i
+
+            else:
+                for i in range(self.last_waypoint_id, self.last_waypoint_id+50):
+                    j = i-3
+                    if j < 0:
+                        j = j + len(self.base_waypoints)
+                    dist = self.get_eucl_distance(self.base_waypoints[j].pose.pose.position.x, self.base_waypoints[j].pose.pose.position.y,self.pose.position.x,self.pose.position.y)
+                    if dist < min_wp_dist:
+                        min_wp_dist = dist
+                        idx_wp_closest = j
 
             return idx_wp_closest
 
