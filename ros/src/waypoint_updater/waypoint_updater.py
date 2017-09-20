@@ -22,7 +22,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 42 # Number of waypoints we will publish. You can change this number
 MAX_VELOCITY = 10.0 # In miles per hour
 
 
@@ -30,8 +30,8 @@ class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
 
-        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size = 1)
+        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb, queue_size = 1)
 
         # TODO: Uncomment when traffic light detection node and/or obstacle detection node is implemented
         #rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
@@ -48,42 +48,39 @@ class WaypointUpdater(object):
 
         self.last_waypoint_id = None
 
-        rate = rospy.Rate(2)
-        while not rospy.is_shutdown():
-            if (self.base_waypoints and self.pose):
+	self.wps_ahead = None
 
+        rospy.spin()
+
+    def publish(self):
             # Define container for waypoints ahead
-                wps_ahead = Lane()
+            wps_ahead = Lane()
 
             # Determine length of input waypoints
-                waypoints_len = len(self.base_waypoints)
+            waypoints_len = len(self.base_waypoints)
 
             # Determine target velocity
-                target_velocity = MAX_VELOCITY
+            target_velocity = MAX_VELOCITY
             # TODO: Implement statements to adjust target velocity in case we are approaching a red traffic light
 
             # Determine first waypoint ahead of the car
-                idx_wp_closest = self.get_idx_closest_waypoint()
-                idx_wp_ahead = self.get_idx_ahead_waypoint(idx_wp_closest)
-                self.last_waypoint_id = idx_wp_ahead
+            idx_wp_closest = self.get_idx_closest_waypoint()
+            idx_wp_ahead = self.get_idx_ahead_waypoint(idx_wp_closest)
+            self.last_waypoint_id = idx_wp_ahead
 
             # Determine waypoints ahead to be published
-                idx_cur = idx_wp_ahead
-                for i in range(LOOKAHEAD_WPS):
-                    wp = self.base_waypoints[idx_cur]
-                    next_wp = Waypoint()
-                    next_wp.pose = wp.pose
-                    next_wp.twist.twist.linear.x = target_velocity
-                    wps_ahead.waypoints.append(next_wp)
-                    idx_cur = (idx_cur + 1) % waypoints_len
+            idx_cur = idx_wp_ahead
+            for i in range(LOOKAHEAD_WPS):
+                wp = self.base_waypoints[idx_cur]
+                next_wp = Waypoint()
+                next_wp.pose = wp.pose
+                next_wp.twist.twist.linear.x = target_velocity
+                wps_ahead.waypoints.append(next_wp)
+                idx_cur = (idx_cur + 1) % waypoints_len
 
             # Publish waypoints ahead
-                self.final_waypoints_pub.publish(wps_ahead)
-                rospy.loginfo('WaypointUpdater: Updated pose - x: %.2f - y: %.2f', self.pose.position.x, self.pose.position.y)
-                rospy.loginfo('WaypointUpdater: Published waypoints ahead, first waypoint - x: %.2f - y: %.2f', wps_ahead.waypoints[0].pose.pose.position.x, wps_ahead.waypoints[0].pose.pose.position.y)
-            rate.sleep()
-
-        rospy.spin()
+	    self.wps_ahead = wps_ahead
+            self.final_waypoints_pub.publish(wps_ahead)
 
 
     def pose_cb(self, msg):
@@ -91,10 +88,12 @@ class WaypointUpdater(object):
         """
         Updates the position of the car (Step 1) and publishes the waypoints ahead (Step 2)
         """
-        ##########
-        # Step 1: Update of self.pose
-        ##########
+
         self.pose = msg.pose
+	if (self.base_waypoints and self.pose):
+		self.publish()
+        	rospy.loginfo('WaypointUpdater: Updated pose - x: %.2f - y: %.2f', self.pose.position.x, self.pose.position.y)
+        	rospy.loginfo('WaypointUpdater: Published waypoints ahead, first waypoint - x: %.2f - y: %.2f', self.wps_ahead.waypoints[0].pose.pose.position.x, self.wps_ahead.waypoints[0].pose.pose.position.y)
 
 
     def waypoints_cb(self, waypoints):
