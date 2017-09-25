@@ -105,7 +105,10 @@ class DBWNode(object):
                  acceleration_current = self.acceleration_current,
 		 time_step = diff.to_sec())
 
-            	rospy.loginfo('DBWNode: Controller output: throttle -> %.2f     brake -> %.2f     steer -> %.2f', throttle, brake, steer)
+            	#rospy.loginfo('DBWNode: Controller output: throttle -> %.2f     brake -> %.2f     steer -> %.2f', throttle, brake, steer)
+		rospy.loginfo('_____________________')
+		rospy.loginfo(self.linear_velocity_future)
+		rospy.loginfo(self.linear_velocity_current)
 
             	self.publish(throttle, brake, steer)
 	    self.time_help = now
