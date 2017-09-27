@@ -3,6 +3,7 @@
 import rospy
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
+from std_msgs.msg import Int32
 import tf
 
 import math
@@ -32,6 +33,7 @@ class WaypointUpdater(object):
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size = 1)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb, queue_size = 1)
+	rospy.Subscriber('/traffic_waypoint', Int32, self.tf_cb, queue_size = 1)
 
         # TODO: Uncomment when traffic light detection node and/or obstacle detection node is implemented
         #rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
@@ -50,6 +52,11 @@ class WaypointUpdater(object):
 
 	self.wps_ahead = None
 
+	self.tf_waypoint = None
+
+	self.max = MAX_VELOCITY
+	self.DAX = MAX_VELOCITY
+
         rospy.spin()
 
     def publish(self):
@@ -60,7 +67,12 @@ class WaypointUpdater(object):
             waypoints_len = len(self.base_waypoints)
 
             # Determine target velocity
-            target_velocity = MAX_VELOCITY
+	    self.max = self.max - self.DAX*0.005
+            target_velocity = MAX_VELOCITY#self.max
+	    if target_velocity < 0:
+		target_velocity = 0
+		self.max = 0
+
             # TODO: Implement statements to adjust target velocity in case we are approaching a red traffic light
 
             # Determine first waypoint ahead of the car
@@ -82,6 +94,8 @@ class WaypointUpdater(object):
 	    self.wps_ahead = wps_ahead
             self.final_waypoints_pub.publish(wps_ahead)
 
+	    rospy.loginfo(self.tf_waypoint)
+
 
     def pose_cb(self, msg):
         # TODO: Implement
@@ -92,8 +106,8 @@ class WaypointUpdater(object):
         self.pose = msg.pose
 	if (self.base_waypoints and self.pose):
 		self.publish()
-        	rospy.loginfo('WaypointUpdater: Updated pose - x: %.2f - y: %.2f', self.pose.position.x, self.pose.position.y)
-        	rospy.loginfo('WaypointUpdater: Published waypoints ahead, first waypoint - x: %.2f - y: %.2f', self.wps_ahead.waypoints[0].pose.pose.position.x, self.wps_ahead.waypoints[0].pose.pose.position.y)
+        	#rospy.loginfo('WaypointUpdater: Updated pose - x: %.2f - y: %.2f', self.pose.position.x, self.pose.position.y)
+        	#rospy.loginfo('WaypointUpdater: Published waypoints ahead, first waypoint - x: %.2f - y: %.2f', self.wps_ahead.waypoints[0].pose.pose.position.x, self.wps_ahead.waypoints[0].pose.pose.position.y)
 
 
     def waypoints_cb(self, waypoints):
@@ -104,6 +118,9 @@ class WaypointUpdater(object):
 
         self.base_waypoints = waypoints.waypoints
         #rospy.loginfo('WaypointUpdater: Updated with current waypoints')
+
+    def tf_cb(self, waypoint):
+	self.tf_waypoint = waypoint
 
 
     def traffic_cb(self, msg):

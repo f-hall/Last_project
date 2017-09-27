@@ -17,4 +17,7 @@
 
     <!--Traffic Light Detector Node -->
     <include file="$(find tl_detector)/launch/tl_detector.launch"/>
+
+    <!--Traffic Light height parameter-->
+    <param name="tl_height_sim" value="5.837643" />
 </launch>

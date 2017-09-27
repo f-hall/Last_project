@@ -36,6 +36,9 @@ class Controller(object):
         vel_gap = linear_velocity_future - linear_velocity_current
 
         acceleration = self.lin_vel_pid.step(vel_gap,time_step)
+	if linear_velocity_future == 0:
+	    acceleration = 0
+	    brake = 1000*self.mass * self.wheel_radius
         #steer = self.ang_vel_pid.step(angular_velocity_future, self.time)
 	steer = self.yawcontroller.get_steering(linear_velocity_future, angular_velocity_future, linear_velocity_current)
 
@@ -50,12 +53,15 @@ class Controller(object):
         else:
             brake = 0
             
+	if linear_velocity_future == 0:
+	    acceleration = 0
+	    brake = self.mass * self.wheel_radius
 
         
         # TODO: Change the arg, kwarg list to suit your needs
         return throttle, brake, steer
 
 
-    def reset():
+    def reset(self):
         self.lin_vel_pid.reset()
 	#self.ang_vel_pid.reset()
