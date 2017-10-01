@@ -23,7 +23,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 42 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 100 # Number of waypoints we will publish. You can change this number
 MAX_VELOCITY = 10.0 # In miles per hour
 
 
@@ -33,7 +33,7 @@ class WaypointUpdater(object):
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size = 1)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb, queue_size = 1)
-	rospy.Subscriber('/traffic_waypoint', Int32, self.tf_cb, queue_size = 1)
+	rospy.Subscriber('/traffic_light', Int32, self.tf_cb, queue_size = 1)
 
         # TODO: Uncomment when traffic light detection node and/or obstacle detection node is implemented
         #rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
@@ -54,8 +54,11 @@ class WaypointUpdater(object):
 
 	self.tf_waypoint = None
 
-	self.max = MAX_VELOCITY
-	self.DAX = MAX_VELOCITY
+	self.need = 0
+
+	self.save_velocity = 0
+
+	self.drive = 0 # driving = 0, start_brake = 1, braking = 2
 
         rospy.spin()
 
@@ -66,15 +69,6 @@ class WaypointUpdater(object):
             # Determine length of input waypoints
             waypoints_len = len(self.base_waypoints)
 
-            # Determine target velocity
-	    self.max = self.max - self.DAX*0.005
-            target_velocity = MAX_VELOCITY#self.max
-	    if target_velocity < 0:
-		target_velocity = 0
-		self.max = 0
-
-            # TODO: Implement statements to adjust target velocity in case we are approaching a red traffic light
-
             # Determine first waypoint ahead of the car
             idx_wp_closest = self.get_idx_closest_waypoint()
             idx_wp_ahead = self.get_idx_ahead_waypoint(idx_wp_closest)
@@ -82,19 +76,51 @@ class WaypointUpdater(object):
 
             # Determine waypoints ahead to be published
             idx_cur = idx_wp_ahead
+	    rospy.loginfo(idx_cur)
             for i in range(LOOKAHEAD_WPS):
                 wp = self.base_waypoints[idx_cur]
                 next_wp = Waypoint()
                 next_wp.pose = wp.pose
-                next_wp.twist.twist.linear.x = target_velocity
+		next_wp.twist = wp.twist
+		if (self.need > 200) & (self.drive > 0):
+		    next_wp.twist.twist.linear.x = self.save_velocity	
                 wps_ahead.waypoints.append(next_wp)
                 idx_cur = (idx_cur + 1) % waypoints_len
-
+	    if (self.need > 200) & (self.drive > 0):
+		self.drive = 0
+	    self.stopping(400, idx_wp_ahead, wps_ahead)
+	    """if (400 - LOOKAHEAD_WPS < idx_wp_ahead < 400):
+		if (self.drive == 0):
+		    self.save_velocity = self.get_waypoint_velocity(self.base_waypoints[400])
+		    self.drive = 1
+		wp_until_tl = 400 - idx_wp_ahead - 6
+		rospy.loginfo(wp_until_tl)
+        	if wp_until_tl < 0:
+            	    wp_until_tl = 0
+		if wp_until_tl <= LOOKAHEAD_WPS:
+		    parting_wp = wps_ahead.waypoints[wp_until_tl]
+		for i in range(wp_until_tl, LOOKAHEAD_WPS):
+                    self.set_waypoint_velocity(wps_ahead.waypoints, i, 0.)
+		for i in range(wp_until_tl-1, -1, -1):
+                    wp = wps_ahead.waypoints[i]
+                    d = self.distance(wps_ahead.waypoints, i, i + 1)
+                    prev_vel = self.get_waypoint_velocity(parting_wp)
+                    vel = math.sqrt(0.2*d) + prev_vel
+                    if vel <= 0.25:
+                        vel = 0
+                    old_vel = self.get_waypoint_velocity(wp)
+                    if vel > old_vel:
+                        break
+                    self.set_waypoint_velocity(wps_ahead.waypoints, i, vel)
+                    parting_wp = wp	
+	    if (idx_wp_ahead >= 400):
+		self.need = self.need+1"""
+	    rospy.loginfo(self.need)	
             # Publish waypoints ahead
 	    self.wps_ahead = wps_ahead
             self.final_waypoints_pub.publish(wps_ahead)
 
-	    rospy.loginfo(self.tf_waypoint)
+	    #rospy.loginfo(self.tf_waypoint)
 
 
     def pose_cb(self, msg):
@@ -215,7 +241,32 @@ class WaypointUpdater(object):
         """
         return math.sqrt((x2-x1)**2 + (y2-y1)**2)
 
-
+    def stopping(self, idx, idx_wp_ahead, wps_ahead):
+       if (idx - LOOKAHEAD_WPS < idx_wp_ahead < idx):
+           if (self.drive == 0):
+	       self.save_velocity = self.get_waypoint_velocity(self.base_waypoints[idx])
+	       self.drive = 1
+	   wp_until_tl = idx - idx_wp_ahead - 6
+           if wp_until_tl < 0:
+               wp_until_tl = 0
+	   if wp_until_tl <= LOOKAHEAD_WPS:
+	       parting_wp = wps_ahead.waypoints[wp_until_tl]
+	   for i in range(wp_until_tl, LOOKAHEAD_WPS):
+               self.set_waypoint_velocity(wps_ahead.waypoints, i, 0.)
+	   for i in range(wp_until_tl-1, -1, -1):
+               wp = wps_ahead.waypoints[i]
+               d = self.distance(wps_ahead.waypoints, i, i + 1)
+               prev_vel = self.get_waypoint_velocity(parting_wp)
+               vel = math.sqrt(0.2*d) + prev_vel
+               if vel <= 0.25:
+                   vel = 0
+               old_vel = self.get_waypoint_velocity(wp)
+               if vel > old_vel:
+                   break
+               self.set_waypoint_velocity(wps_ahead.waypoints, i, vel)
+               parting_wp = wp	
+       if (idx_wp_ahead >= idx):
+           self.need = self.need+1
 
 
 if __name__ == '__main__':

@@ -19,9 +19,9 @@ class Controller(object):
         self.time = 1.0/self.rate
         self.mass = self.vehicle_mass + self.fuel_capacity * GAS_DENSITY
 
-        self.lin_vel_pid = PID(0.9, 0.1, 0.4, mn = -abs(self.decel_limit), mx = self.accel_limit) #0.9 0.1 0.4
+        self.lin_vel_pid = PID(1.7, 0.001, 0.02, mn = self.decel_limit, mx = self.accel_limit) #0.9 0.1 0.4 -abs
         #self.accel_pid = PID(0.3, 0.1, 0.0, mn = 0.0, mx = 1.0)
-	self.yawcontroller = YawController(2.8498, 14.8, 10.0, 3.0, 8.)
+	self.yawcontroller = YawController(2.8498, 14.8, 5.0, 3.0, 8.) #10 auf 5.0
 
 
     def control(self, **kwargs):
