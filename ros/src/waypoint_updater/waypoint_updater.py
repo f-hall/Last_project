@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TwistStamped
 from styx_msgs.msg import Lane, Waypoint
 from std_msgs.msg import Int32
 import tf
@@ -35,6 +35,7 @@ class WaypointUpdater(object):
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size = 1)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb, queue_size = 1)
 	rospy.Subscriber('/traffic_light', Int32, self.tf_cb, queue_size = 1)
+	rospy.Subscriber('/current_velocity', TwistStamped, self.twist_cb, queue_size=1);
 
         # TODO: Uncomment when traffic light detection node and/or obstacle detection node is implemented
         #rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
@@ -104,17 +105,12 @@ class WaypointUpdater(object):
 
 
     def pose_cb(self, msg):
-        # TODO: Implement
-        """
-        Updates the position of the car (Step 1) and publishes the waypoints ahead (Step 2)
-        """
-
         self.pose = msg.pose
 	if (self.base_waypoints and self.pose):
 		self.publish()
-        	#rospy.loginfo('WaypointUpdater: Updated pose - x: %.2f - y: %.2f', self.pose.position.x, self.pose.position.y)
-        	#rospy.loginfo('WaypointUpdater: Published waypoints ahead, first waypoint - x: %.2f - y: %.2f', self.wps_ahead.waypoints[0].pose.pose.position.x, self.wps_ahead.waypoints[0].pose.pose.position.y)
 
+    def twist_cb(self, msg):
+        self.twist = msg.twist
 
     def waypoints_cb(self, waypoints):
         """
@@ -223,13 +219,13 @@ class WaypointUpdater(object):
         return math.sqrt((x2-x1)**2 + (y2-y1)**2)
 
     def stopping(self, idx, idx_wp_ahead, wps_ahead):
-       if (idx - LOOKAHEAD_WPS < idx_wp_ahead < idx):
+       if (idx - LOOKAHEAD_WPS < idx_wp_ahead < idx-5):
            if (self.drive == 0):
-	       self.save_velocity = self.get_waypoint_velocity(self.base_waypoints[idx_wp_ahead])
+	       #self.save_velocity = self.get_waypoint_velocity(self.base_waypoints[idx_wp_ahead])
 	       self.drive = 1
 	       k = 0
 	       self.counter = 0
-	       while k < 6.5*(self.save_velocity/11.112):
+	       while k < 6.5*(self.twist.linear.x/11.112):
 		   k = self.distance(self.base_waypoints, idx-self.counter, idx)
 		   self.counter = self.counter + 1
 		   if self.counter > LOOKAHEAD_WPS/4:
