@@ -5,6 +5,7 @@ from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
 from std_msgs.msg import Int32
 import tf
+import copy
 
 import math
 
@@ -47,6 +48,7 @@ class WaypointUpdater(object):
 
         # Container for current base waypoints received via subscribtion to '/base_waypoints'
         self.base_waypoints = None
+	self.base_waypoints_copy = None
 
         self.last_waypoint_id = None
 
@@ -55,6 +57,8 @@ class WaypointUpdater(object):
 	self.tf_waypoint = None
 
 	self.need = 0
+	
+	self.counter = 0
 
 	self.save_velocity = 0
 
@@ -77,44 +81,20 @@ class WaypointUpdater(object):
             # Determine waypoints ahead to be published
             idx_cur = idx_wp_ahead
 	    rospy.loginfo(idx_cur)
+	    #if (self.need > 200) & (self.drive > 0):
+		    #self.base_waypoints = copy.deepcopy(self.base_waypoints_copy)
             for i in range(LOOKAHEAD_WPS):
                 wp = self.base_waypoints[idx_cur]
                 next_wp = Waypoint()
                 next_wp.pose = wp.pose
 		next_wp.twist = wp.twist
 		if (self.need > 200) & (self.drive > 0):
-		    next_wp.twist.twist.linear.x = self.save_velocity	
+		    next_wp.twist.twist.linear.x = self.get_waypoint_velocity(self.base_waypoints_copy[idx_cur])
                 wps_ahead.waypoints.append(next_wp)
                 idx_cur = (idx_cur + 1) % waypoints_len
 	    if (self.need > 200) & (self.drive > 0):
 		self.drive = 0
 	    self.stopping(400, idx_wp_ahead, wps_ahead)
-	    """if (400 - LOOKAHEAD_WPS < idx_wp_ahead < 400):
-		if (self.drive == 0):
-		    self.save_velocity = self.get_waypoint_velocity(self.base_waypoints[400])
-		    self.drive = 1
-		wp_until_tl = 400 - idx_wp_ahead - 6
-		rospy.loginfo(wp_until_tl)
-        	if wp_until_tl < 0:
-            	    wp_until_tl = 0
-		if wp_until_tl <= LOOKAHEAD_WPS:
-		    parting_wp = wps_ahead.waypoints[wp_until_tl]
-		for i in range(wp_until_tl, LOOKAHEAD_WPS):
-                    self.set_waypoint_velocity(wps_ahead.waypoints, i, 0.)
-		for i in range(wp_until_tl-1, -1, -1):
-                    wp = wps_ahead.waypoints[i]
-                    d = self.distance(wps_ahead.waypoints, i, i + 1)
-                    prev_vel = self.get_waypoint_velocity(parting_wp)
-                    vel = math.sqrt(0.2*d) + prev_vel
-                    if vel <= 0.25:
-                        vel = 0
-                    old_vel = self.get_waypoint_velocity(wp)
-                    if vel > old_vel:
-                        break
-                    self.set_waypoint_velocity(wps_ahead.waypoints, i, vel)
-                    parting_wp = wp	
-	    if (idx_wp_ahead >= 400):
-		self.need = self.need+1"""
 	    rospy.loginfo(self.need)	
             # Publish waypoints ahead
 	    self.wps_ahead = wps_ahead
@@ -143,6 +123,7 @@ class WaypointUpdater(object):
         """
 
         self.base_waypoints = waypoints.waypoints
+	self.base_waypoints_copy = copy.deepcopy(self.base_waypoints)
         #rospy.loginfo('WaypointUpdater: Updated with current waypoints')
 
     def tf_cb(self, waypoint):
@@ -244,9 +225,19 @@ class WaypointUpdater(object):
     def stopping(self, idx, idx_wp_ahead, wps_ahead):
        if (idx - LOOKAHEAD_WPS < idx_wp_ahead < idx):
            if (self.drive == 0):
-	       self.save_velocity = self.get_waypoint_velocity(self.base_waypoints[idx])
+	       self.save_velocity = self.get_waypoint_velocity(self.base_waypoints[idx_wp_ahead])
 	       self.drive = 1
-	   wp_until_tl = idx - idx_wp_ahead - 6
+	       k = 0
+	       self.counter = 0
+	       while k < 6.5*(self.save_velocity/11.112):
+		   k = self.distance(self.base_waypoints, idx-self.counter, idx)
+		   self.counter = self.counter + 1
+		   if self.counter > LOOKAHEAD_WPS/4:
+		       break	
+	   wp_until_tl = idx - idx_wp_ahead
+	   if wp_until_tl < 0:
+		wp_until_tl = wp_until_tl + len(self.base_waypoints)
+	   wp_until_tl = wp_until_tl - self.counter
            if wp_until_tl < 0:
                wp_until_tl = 0
 	   if wp_until_tl <= LOOKAHEAD_WPS:
@@ -265,7 +256,7 @@ class WaypointUpdater(object):
                    break
                self.set_waypoint_velocity(wps_ahead.waypoints, i, vel)
                parting_wp = wp	
-       if (idx_wp_ahead >= idx):
+       if (idx_wp_ahead >= idx-self.counter):
            self.need = self.need+1
 
 
